@@ -1,7 +1,9 @@
 use args::{Action, Config};
-use std::env;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
+use std::{env, thread};
 
 mod args;
 mod help;
@@ -23,40 +25,53 @@ fn main() {
 
 fn run(config: Config) -> ! {
     let interval = Duration::from_millis(config.interval_ms);
-    let mut children: Vec<Child> = Vec::new();
+
+    let child_count = Arc::new(AtomicU16::new(0));
+    let config = Arc::new(config);
 
     tick::tick(interval, || {
-        children.retain_mut(|child| match child.try_wait() {
-            Ok(Some(status)) => {
-                if !status.success() {
-                    eprintln!("Command exited with {status}");
-                }
+        let child_count = Arc::clone(&child_count);
 
-                false
-            }
-            Ok(None) => true,
-            Err(e) => {
-                eprintln!("Error checking child process status: {e}");
-                true
-            }
-        });
+        if child_count.load(Ordering::SeqCst) >= config.concurrency {
+            return;
+        }
 
-        if children.len() < config.concurrency as usize {
-            let child = Command::new(&config.command)
-                .args(&config.args)
+        let config = Arc::clone(&config);
+
+        thread::spawn(move || {
+            let child = Command::new(&*config.command)
+                .args(&*config.args)
                 .stdin(Stdio::null())
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit())
                 .spawn();
 
-            match child {
-                Ok(child) => {
-                    children.push(child);
-                }
+            let mut child = match child {
+                Ok(child) => child,
                 Err(e) => {
                     eprintln!("Failed to start command: {e}");
+                    return;
+                }
+            };
+
+            child_count.fetch_add(1, Ordering::SeqCst);
+
+            match child.wait() {
+                Ok(status) => {
+                    if !status.success() {
+                        eprintln!("Command exited with {status}");
+                    }
+                }
+                Err(e) => {
+                    // todo: we're in unsafe territory here:
+                    //       we don't know if the child process is still running,
+                    //       and whether we should decrement the child count;
+                    //       should we panic the main thread instead?
+                    eprintln!("Error checking child process status: {e}");
                 }
             }
-        }
+
+            child_count.fetch_sub(1, Ordering::SeqCst);
+        });
     });
 }

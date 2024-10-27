@@ -109,9 +109,7 @@ fn test_run_with_non_zero_exit_code() {
         grace_period_ms: 40,
         expected_stdout: TimestampedOutputLine::repeat_at(&[0, 100, 200, 300, 400, 500], "hello"),
         expected_stderr: TimestampedOutputLine::repeat_at(
-            // because we wait for exit status at the beginning of each tick, we're off by 100ms;
-            // this may be fixed by switching to tokio
-            &[100, 200, 300, 400, 500],
+            &[0, 100, 200, 300, 400, 500],
             "Command exited with exit status: 1",
         ),
     });
