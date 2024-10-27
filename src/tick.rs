@@ -12,14 +12,15 @@ where
 
         let now = Instant::now();
 
-        if next_tick > now {
-            let sleep_duration = next_tick.duration_since(now);
-            thread::sleep(sleep_duration);
+        loop {
+            if next_tick > now {
+                break;
+            }
 
+            // behind schedule, skip ticks to catch up
             next_tick = next_tick + interval;
-        } else {
-            // we were not fast enough, reschedule the next tick from now
-            next_tick = now + interval;
         }
+
+        thread::sleep(next_tick.duration_since(now));
     }
 }
