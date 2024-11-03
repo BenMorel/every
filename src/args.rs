@@ -184,7 +184,7 @@ fn parse_concurrency(concurrency: &str) -> Result<u16, String> {
     };
 
     match concurrency.parse() {
-        Ok(concurrency) if concurrency >= 1 && concurrency <= MAX_CONCURRENCY => Ok(concurrency),
+        Ok(concurrency) if (1..=MAX_CONCURRENCY).contains(&concurrency) => Ok(concurrency),
         Ok(_) => Err(invalid_range()),
         Err(err) if *err.kind() == IntErrorKind::PosOverflow => Err(invalid_range()),
         Err(_) => Err(format!("Invalid concurrency value: '{concurrency}'")),

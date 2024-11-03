@@ -18,7 +18,7 @@ where
             }
 
             // behind schedule, skip ticks to catch up
-            next_tick = next_tick + interval;
+            next_tick += interval;
         }
 
         thread::sleep(next_tick.duration_since(now));
